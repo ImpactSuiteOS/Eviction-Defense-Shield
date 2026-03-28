@@ -1,0 +1,195 @@
+# EvictionShield Jurisdiction Ruleset — Pennsylvania (PA-UJS)
+# Authority: Pennsylvania Landlord-Tenant Act, 68 Pa. C.S. §§ 250.101–250.602
+# Last updated: 2024-01-01
+
+jurisdiction_name: "Pennsylvania Magisterial District Court"
+jurisdiction_code: "PA-UJS"
+state: "PA"
+court_hierarchy: >
+  Magisterial District Court (MDC) → Court of Common Pleas (CCP) on appeal.
+  Evictions filed at MDC; CCP has de novo review on appeal within 30 days.
+
+citation_format: "68 Pa. C.S. § {section}"
+retaliation_window_days: 180
+
+licensure_required: true
+licensure_details: >
+  Philadelphia and several other PA municipalities require a valid Certificate of Rental
+  Suitability and/or Housing Inspection Certificate. Statewide, no single rental license
+  law exists, but local ordinances may require it. Check municipal code for property ZIP.
+  Key citation: Philadelphia Code § 9-3902; Pittsburgh Code § 781.00.
+
+notice_periods:
+  - lease_type: "month-to-month"
+    reason: "termination_without_cause"
+    minimum_days: 15
+    statute: "68 Pa. C.S. § 250.501(b)(1)"
+    notes: >
+      15-day notice required for month-to-month tenancies. Notice period runs from
+      the day after delivery through the last day of the rental period. A notice
+      that is even one day short is legally defective on its face.
+
+  - lease_type: "month-to-month"
+    reason: "nonpayment_of_rent"
+    minimum_days: 10
+    statute: "68 Pa. C.S. § 250.501(b)(2)"
+    notes: >
+      10-day pay-or-quit notice required. Clock starts day after delivery.
+      Acceptance of any rent payment after notice delivery may void the notice.
+
+  - lease_type: "fixed-term"
+    reason: "termination_without_cause"
+    minimum_days: 0
+    statute: "68 Pa. C.S. § 250.501(a)"
+    notes: >
+      Fixed-term leases expire by their own terms. No advance notice required
+      unless the lease itself specifies a notice requirement — which is then
+      contractually binding. Check lease terms.
+
+  - lease_type: "fixed-term"
+    reason: "nonpayment_of_rent"
+    minimum_days: 10
+    statute: "68 Pa. C.S. § 250.501(b)(2)"
+    notes: Same 10-day requirement applies regardless of lease type.
+
+  - lease_type: "year-to-year"
+    reason: "termination_without_cause"
+    minimum_days: 30
+    statute: "68 Pa. C.S. § 250.501(b)(1)"
+    notes: 30-day notice required for year-to-year tenancies.
+
+  - lease_type: "any"
+    reason: "breach_of_lease_terms"
+    minimum_days: 15
+    statute: "68 Pa. C.S. § 250.501(b)(1)"
+    notes: >
+      15-day notice to cure or vacate required for material lease violations.
+      Tenant has the notice period to cure the violation; if cured, the notice
+      is void.
+
+delivery_methods:
+  - method: "personal_service"
+    description: "Hand delivery to tenant at the rental property"
+    proof_required: "Signed acknowledgment OR process server affidavit"
+    statute: "68 Pa. C.S. § 250.501(c)"
+    valid: true
+
+  - method: "first_class_mail"
+    description: "USPS First-Class Mail to the rental property address"
+    proof_required: "Certificate of mailing; NOT sufficient alone if tenant disputes receipt"
+    statute: "68 Pa. C.S. § 250.501(c)"
+    valid: true
+    notes: >
+      First-class mail delivery is presumed 3 days after mailing. Add 3 days to
+      notice period when computing whether minimum was met.
+
+  - method: "certified_mail"
+    description: "USPS Certified Mail with Return Receipt Requested"
+    proof_required: "Return receipt (green card) OR USPS tracking confirmation of delivery"
+    statute: "68 Pa. C.S. § 250.501(c)"
+    valid: true
+
+  - method: "posting"
+    description: "Posting notice on the most public part of the property"
+    proof_required: >
+      Permitted ONLY if personal service AND mail delivery both fail. Must be combined
+      with first-class mail simultaneously.
+    statute: "68 Pa. C.S. § 250.501(c)"
+    valid: conditional
+
+  - method: "email_or_text"
+    description: "Electronic notice via email or SMS"
+    proof_required: "N/A"
+    statute: "N/A"
+    valid: false
+    notes: "Electronic notice is NOT a legally recognized delivery method in Pennsylvania."
+
+mandatory_filing_disclosures:
+  - disclosure: "Landlord's name and address for service"
+    statute: "Pa.R.C.P.M.D.J. No. 501"
+    required: true
+
+  - disclosure: "Complete property address including unit number"
+    statute: "Pa.R.C.P.M.D.J. No. 501"
+    required: true
+
+  - disclosure: "Specific factual basis for eviction (nonpayment, breach, etc.)"
+    statute: "Pa.R.C.P.M.D.J. No. 501"
+    required: true
+
+  - disclosure: "Amount of rent claimed to be owed (for nonpayment actions)"
+    statute: "Pa.R.C.P.M.D.J. No. 503"
+    required: true
+    condition: "nonpayment_of_rent only"
+
+  - disclosure: "Date and method of notice delivery"
+    statute: "68 Pa. C.S. § 250.501"
+    required: true
+
+  - disclosure: "Attorney bar number if represented by counsel"
+    statute: "Pa.R.C.P. No. 440"
+    required: false
+
+local_ordinances:
+  - ordinance_name: "Philadelphia Good Cause Eviction Protection"
+    description: >
+      Philadelphia requires landlords to state a 'good cause' for non-renewal
+      of leases and prohibits eviction without good cause. Applies to all
+      residential tenancies within Philadelphia city limits.
+    applies_to: "Philadelphia (ZIP codes 19100-19199)"
+    statute: "Philadelphia Code § 9-804"
+    effective_date: "2021-01-01"
+
+  - ordinance_name: "Philadelphia COVID-19 Emergency Housing Protection"
+    description: >
+      Philadelphia's COVID protections created additional notice requirements and
+      required landlords to provide a Certification of COVID Impact. Check if
+      filing date falls within protection window.
+    applies_to: "Philadelphia"
+    statute: "Philadelphia Code § 9-804.1"
+    effective_date: "2020-04-01"
+    expiration_date: "2023-12-31"
+    active: false
+
+  - ordinance_name: "Pittsburgh Rental Housing Safety Inspection Ordinance"
+    description: >
+      Pittsburgh requires annual rental housing inspections and a Certificate
+      of Rental Compliance. A landlord without a current certificate may not
+      maintain an eviction action.
+    applies_to: "Pittsburgh (ZIP codes 15200-15290)"
+    statute: "Pittsburgh Code § 781.07"
+    effective_date: "2015-01-01"
+
+  - ordinance_name: "Pennsylvania Warranty of Habitability"
+    description: >
+      Pennsylvania recognizes an implied warranty of habitability in residential
+      leases. Tenants may raise habitability as a defense to nonpayment or seek
+      rent abatement. Burden shifts to landlord once tenant raises habitability
+      in MDC proceedings.
+    applies_to: "statewide"
+    statute: "68 Pa. C.S. § 250.206; Pugh v. Holmes, 486 Pa. 272 (1979)"
+    effective_date: "1979-01-01"
+
+current_moratoriums:
+  - name: "No statewide moratorium"
+    description: "Pennsylvania's COVID-19 eviction moratorium expired."
+    active: false
+    expiration_date: "2021-08-31"
+
+special_tenant_protections:
+  - >
+    Section 8/HCV Tenants: Landlords must provide 30-day notice to HUD and the
+    local PHA before terminating a subsidized tenancy. HUD Form 52517 required.
+    Citation: 42 U.S.C. § 1437f; 24 C.F.R. § 982.310.
+  - >
+    Retaliatory Eviction Presumption: Filing within 6 months of tenant's
+    habitability complaint creates a rebuttable presumption of retaliation.
+    Burden shifts to landlord to show non-retaliatory motive.
+    Citation: 68 Pa. C.S. § 250.205.
+  - >
+    Elderly/Disabled Tenants: Court may grant additional time to vacate upon
+    showing of hardship. Judicial discretion; no absolute statutory right.
+  - >
+    Lead Paint Disclosure: Properties built before 1978 require EPA-compliant
+    lead paint disclosure to tenants. Failure may support habitability defense.
+    Citation: 42 U.S.C. § 4852d; 40 C.F.R. Part 745.

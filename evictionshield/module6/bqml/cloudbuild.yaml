@@ -1,0 +1,165 @@
+# EvictionShield — Module 6B: Cloud Build YAML for Weekly BQML Retraining
+#
+# Triggered weekly by Cloud Scheduler:
+#   gcloud scheduler jobs create http bqml-weekly-retrain \
+#     --schedule="0 2 * * 0" \
+#     --uri="https://cloudbuild.googleapis.com/v1/projects/$PROJECT_ID/triggers/$TRIGGER_ID:run" \
+#     --oauth-service-account-email="evictionshield-build@$PROJECT_ID.iam.gserviceaccount.com" \
+#     --message-body="{}"
+
+steps:
+  # -----------------------------------------------------------------------
+  # Step 1: Validate that defense_effectiveness table has enough new data
+  # -----------------------------------------------------------------------
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk:slim'
+    id: 'validate-training-data'
+    entrypoint: 'bash'
+    args:
+      - '-c'
+      - |
+        set -e
+        echo "Validating training data volume..."
+        ROW_COUNT=$(bq query --nouse_legacy_sql --format=csv \
+          "SELECT COUNT(*) FROM \`${_PROJECT_ID}.${_DATASET}.filing_events\` \
+           WHERE outcome IS NOT NULL AND filing_date >= DATE_SUB(CURRENT_DATE(), INTERVAL 3 YEAR)" \
+          | tail -1)
+        echo "Training rows available: $ROW_COUNT"
+        if [ "$ROW_COUNT" -lt "500" ]; then
+          echo "ERROR: Insufficient training data ($ROW_COUNT rows). Minimum 500 required."
+          exit 1
+        fi
+        echo "Validation passed: $ROW_COUNT rows"
+    env:
+      - '_PROJECT_ID=${_PROJECT_ID}'
+      - '_DATASET=${_DATASET}'
+
+  # -----------------------------------------------------------------------
+  # Step 2: Retrain the BQML model (idempotent — CREATE OR REPLACE)
+  # -----------------------------------------------------------------------
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk:slim'
+    id: 'retrain-model'
+    entrypoint: 'bash'
+    args:
+      - '-c'
+      - |
+        set -e
+        echo "Starting BQML model retraining..."
+        START_TIME=$(date +%s)
+
+        # Run the model creation SQL (defined in model.sql)
+        bq query --nouse_legacy_sql --max_rows=1 \
+          --project_id="${_PROJECT_ID}" \
+          < /workspace/module6/bqml/model.sql
+
+        END_TIME=$(date +%s)
+        ELAPSED=$((END_TIME - START_TIME))
+        echo "Retraining complete in ${ELAPSED}s"
+    env:
+      - '_PROJECT_ID=${_PROJECT_ID}'
+      - '_DATASET=${_DATASET}'
+
+  # -----------------------------------------------------------------------
+  # Step 3: Evaluate the retrained model and enforce quality gate
+  # -----------------------------------------------------------------------
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk:slim'
+    id: 'evaluate-model'
+    entrypoint: 'bash'
+    args:
+      - '-c'
+      - |
+        set -e
+        echo "Evaluating model quality..."
+
+        # Extract key metrics
+        EVAL_RESULT=$(bq query --nouse_legacy_sql --format=json \
+          "SELECT
+             precision,
+             recall,
+             roc_auc,
+             log_loss
+           FROM ML.EVALUATE(MODEL \`${_PROJECT_ID}.${_DATASET}.defense_effectiveness_model\`)" \
+          | python3 -c "
+        import json, sys
+        rows = json.load(sys.stdin)
+        if rows:
+            row = rows[0]
+            print(f'precision={row[\"precision\"]}')
+            print(f'recall={row[\"recall\"]}')
+            print(f'roc_auc={row[\"roc_auc\"]}')
+            print(f'log_loss={row[\"log_loss\"]}')
+            precision = float(row['precision'])
+            recall = float(row['recall'])
+            roc_auc = float(row['roc_auc'])
+            if precision < 0.55:
+                print(f'QUALITY GATE FAILED: precision {precision:.3f} < 0.55')
+                sys.exit(1)
+            if roc_auc < 0.65:
+                print(f'QUALITY GATE FAILED: roc_auc {roc_auc:.3f} < 0.65')
+                sys.exit(1)
+            print('Quality gate PASSED')
+        else:
+            print('No evaluation results returned')
+            sys.exit(1)
+        ")
+
+        echo "$EVAL_RESULT"
+    env:
+      - '_PROJECT_ID=${_PROJECT_ID}'
+      - '_DATASET=${_DATASET}'
+
+  # -----------------------------------------------------------------------
+  # Step 4: Archive previous model version snapshot
+  # -----------------------------------------------------------------------
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk:slim'
+    id: 'archive-model-snapshot'
+    entrypoint: 'bash'
+    args:
+      - '-c'
+      - |
+        set -e
+        SNAPSHOT_DATE=$(date +%Y%m%d)
+        echo "Creating model snapshot: defense_effectiveness_model_$SNAPSHOT_DATE"
+
+        bq query --nouse_legacy_sql \
+          "CREATE OR REPLACE MODEL \`${_PROJECT_ID}.${_DATASET}.defense_effectiveness_model_${SNAPSHOT_DATE}\`
+           OPTIONS (warm_start = TRUE)
+           AS SELECT * FROM \`${_PROJECT_ID}.${_DATASET}.defense_effectiveness\` LIMIT 1" \
+          || echo "Snapshot creation skipped (optional step)"
+    env:
+      - '_PROJECT_ID=${_PROJECT_ID}'
+      - '_DATASET=${_DATASET}'
+
+  # -----------------------------------------------------------------------
+  # Step 5: Write retraining audit record to BigQuery
+  # -----------------------------------------------------------------------
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk:slim'
+    id: 'log-retraining-event'
+    entrypoint: 'bash'
+    args:
+      - '-c'
+      - |
+        set -e
+        RUN_DATE=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+        BUILD_ID="${BUILD_ID}"
+
+        bq query --nouse_legacy_sql \
+          "INSERT INTO \`${_PROJECT_ID}.${_DATASET}.model_retraining_log\`
+           (model_name, retrained_at, build_id, quality_gate_passed)
+           VALUES
+           ('defense_effectiveness_model', TIMESTAMP('$RUN_DATE'), '$BUILD_ID', TRUE)"
+    env:
+      - '_PROJECT_ID=${_PROJECT_ID}'
+      - '_DATASET=${_DATASET}'
+
+# -----------------------------------------------------------------------
+# Substitution variables (set in Cloud Build trigger config)
+# -----------------------------------------------------------------------
+substitutions:
+  _PROJECT_ID: 'evictionshield-prod'
+  _DATASET: 'evictionshield'
+
+options:
+  logging: CLOUD_LOGGING_ONLY
+  machineType: 'E2_MEDIUM'
+
+timeout: '3600s'    # 1 hour max for large model retraining

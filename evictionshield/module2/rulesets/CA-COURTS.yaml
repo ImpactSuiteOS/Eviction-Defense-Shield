@@ -1,0 +1,197 @@
+# EvictionShield Jurisdiction Ruleset — California (CA-COURTS)
+# Authority: California Code of Civil Procedure §§ 1161–1179.5; Civil Code §§ 1940–1954.05
+# Last updated: 2024-01-01
+
+jurisdiction_name: "California Superior Court (Unlawful Detainer)"
+jurisdiction_code: "CA-COURTS"
+state: "CA"
+court_hierarchy: >
+  California Superior Court (Unlimited Civil if > $25,000; Limited Civil if ≤ $25,000).
+  Unlawful Detainer (UD) actions — expedited eviction track. Appeal to Court of Appeal.
+  LA County has a dedicated UD court. San Francisco has a Rent Board pre-filing process.
+
+citation_format: "Cal. Civ. Proc. Code § {section} or Cal. Civ. Code § {section}"
+retaliation_window_days: 180
+
+licensure_required: false
+licensure_details: >
+  No statewide rental license requirement. Several cities (Los Angeles, San Francisco,
+  Oakland, Berkeley) have local registration or inspection requirements. Check local
+  municipal code.
+
+notice_periods:
+  - lease_type: "month-to-month"
+    reason: "termination_without_cause"
+    minimum_days: 30
+    statute: "Cal. Civ. Code § 1946"
+    notes: >
+      30-day notice if tenant has lived there < 1 year. 60-day notice if tenant
+      has lived there ≥ 1 year. Tenancy under AB 1482 just-cause protections may
+      prohibit no-fault termination entirely.
+
+  - lease_type: "month-to-month_long_term"
+    reason: "termination_without_cause"
+    minimum_days: 60
+    statute: "Cal. Civ. Code § 1946.1"
+    notes: Applies when tenant has resided in unit ≥ 1 year.
+
+  - lease_type: "any"
+    reason: "nonpayment_of_rent"
+    minimum_days: 3
+    statute: "Cal. Civ. Proc. Code § 1161(2)"
+    notes: >
+      3-day pay-or-quit notice. Under AB 832 (COVID), extended to 15 days for
+      COVID-impacted tenants (verify current applicability). Clock starts day
+      after service.
+
+  - lease_type: "any"
+    reason: "breach_of_lease_terms"
+    minimum_days: 3
+    statute: "Cal. Civ. Proc. Code § 1161(3)"
+    notes: >
+      3-day notice to perform covenant or quit. Tenant has 3 days to cure.
+      If incurable violation, 3-day unconditional quit notice permitted.
+
+  - lease_type: "any"
+    reason: "nuisance_or_illegal_activity"
+    minimum_days: 3
+    statute: "Cal. Civ. Proc. Code § 1161(4)"
+    notes: 3-day unconditional quit; no cure right.
+
+  - lease_type: "fixed-term"
+    reason: "termination_at_lease_end"
+    minimum_days: 0
+    statute: "Cal. Civ. Proc. Code § 1161"
+    notes: Fixed terms expire by their terms; no advance notice unless specified in lease.
+
+delivery_methods:
+  - method: "personal_service"
+    description: "Delivery to tenant personally"
+    proof_required: "Proof of Service (POS-040) filed with court"
+    statute: "Cal. Civ. Proc. Code § 1162(a)"
+    valid: true
+
+  - method: "substituted_service"
+    description: "Delivery to person of suitable age AND mailing to property"
+    proof_required: "POS-040 filed with court; mailing must be same day or next business day"
+    statute: "Cal. Civ. Proc. Code § 1162(b)"
+    valid: true
+    notes: Only if personal service was first attempted.
+
+  - method: "post_and_mail"
+    description: "Posting on door AND mailing to property (first-class)"
+    proof_required: >
+      POS-040. Requires prior attempt at personal and substituted service. Service
+      not complete until 5 additional days have elapsed (CCP § 1013).
+    statute: "Cal. Civ. Proc. Code § 1162(c)"
+    valid: conditional
+
+  - method: "email_or_text"
+    description: "Electronic notice"
+    proof_required: "N/A"
+    statute: "N/A"
+    valid: false
+    notes: Electronic notice not valid for UD notices unless both parties have separately agreed in writing.
+
+mandatory_filing_disclosures:
+  - disclosure: "UD-100 Summons — Unlawful Detainer form"
+    statute: "Cal. Civ. Proc. Code § 412.20"
+    required: true
+
+  - disclosure: "Rental address including unit number"
+    statute: "Cal. Civ. Proc. Code § 1166"
+    required: true
+
+  - disclosure: "Date and method of notice service"
+    statute: "Cal. Civ. Proc. Code § 1166"
+    required: true
+
+  - disclosure: "AB 1482 / Just Cause notice for covered tenancies"
+    statute: "Cal. Civ. Code § 1946.2"
+    required: true
+    condition: "Properties covered by AB 1482 (built > 15 years ago, not single-family exempt)"
+
+  - disclosure: "Amount of rent claimed (3-day notice)"
+    statute: "Cal. Civ. Proc. Code § 1161(2)"
+    required: true
+    condition: "Nonpayment cases only — must state exact amount owed"
+
+  - disclosure: "ERAP/Rental Assistance Program notice"
+    statute: "Cal. Civ. Proc. Code § 1179.10"
+    required: true
+    condition: "If tenant applied for ERAP or funding was pending"
+
+local_ordinances:
+  - ordinance_name: "AB 1482 — Tenant Protection Act of 2019 (Just Cause Eviction)"
+    description: >
+      Requires just cause for eviction in covered residential units. Properties built
+      within 15 years are exempt. Single-family homes and condos are exempt if
+      tenant received proper notice. Two categories of just cause: at-fault (nonpayment,
+      lease violation, nuisance) and no-fault (owner move-in, demolition, substantial
+      remodel). No-fault requires 1 month relocation assistance payment.
+    applies_to: "Statewide — units built > 15 years ago not otherwise exempt"
+    statute: "Cal. Civ. Code § 1946.2"
+    effective_date: "2020-01-01"
+
+  - ordinance_name: "Los Angeles Rent Stabilization Ordinance (RSO)"
+    description: >
+      Covers most LA rental units built before 1978. Limits rent increases and
+      requires just cause for eviction. Landlords must serve Landlord Declaration
+      of Intent to Evict form. Failure to register property with LAHD or pay
+      registration fees may void eviction action.
+    applies_to: "Los Angeles city limits"
+    statute: "Los Angeles Municipal Code § 151.00 et seq."
+    effective_date: "1979-05-31"
+
+  - ordinance_name: "San Francisco Just Cause for Eviction Ordinance"
+    description: >
+      All residential tenants in San Francisco have just cause protections
+      regardless of when the unit was built. 14 just cause grounds required.
+      Landlord must file Notice of Termination with SF Rent Board.
+    applies_to: "San Francisco"
+    statute: "San Francisco Rent Ordinance § 37.9"
+    effective_date: "1979-01-01"
+
+  - ordinance_name: "California Implied Warranty of Habitability"
+    description: >
+      Landlords must maintain residential premises in habitable condition.
+      Tenants may raise habitability as affirmative defense; court may award
+      rent abatement. Key habitability standards in Civil Code § 1941.1.
+    applies_to: "Statewide"
+    statute: "Cal. Civ. Code §§ 1941–1942.4"
+    effective_date: "1970-01-01"
+
+current_moratoriums:
+  - name: "State COVID Eviction Moratorium"
+    description: "California's AB 832 COVID eviction moratorium expired."
+    active: false
+    expiration_date: "2022-03-31"
+
+  - name: "Los Angeles Local Emergency Moratorium"
+    description: >
+      Los Angeles City and County issued extended moratoriums. The final local
+      protections for rent-stabilized units expired February 1, 2024. Verify
+      against current LAHD guidance for very recent filings.
+    active: false
+    expiration_date: "2024-02-01"
+    applies_to: "Los Angeles"
+
+special_tenant_protections:
+  - >
+    AB 1482 No-Fault Relocation Assistance: For no-fault evictions of covered tenants,
+    landlord must pay 1 month's rent as relocation assistance before the notice period
+    expires. Failure to pay voids the notice. Cal. Civ. Code § 1946.2(d).
+  - >
+    Section 8 / HACLA Tenants: Additional HUD notice required. HA must be notified.
+    30-day notice minimum regardless of lease type. 42 U.S.C. § 1437f; 24 C.F.R. § 982.310.
+  - >
+    ERAP Priority: If tenant applied for ERAP and funds are pending, filing may be premature.
+    Check Cal. Civ. Proc. Code § 1179.10 for dismissal procedure.
+  - >
+    Retaliation Presumption: Eviction within 180 days of tenant exercising rights (repair
+    and deduct, habitability complaint, rent withholding for uninhabitable conditions) is
+    presumptively retaliatory. Cal. Civ. Code § 1942.5.
+  - >
+    Unlawful Detainer Masking: Tenants may seek to have UD records sealed after 60 days if
+    case was dismissed, tenant prevailed, or landlord failed to appear. Cal. Civ. Proc.
+    Code § 1161.2.
