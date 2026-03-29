@@ -1,0 +1,958 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>EvictionShield — System Workflow</title>
+<style>
+  :root {
+    --bg: #0d1117;
+    --surface: #161b22;
+    --border: #30363d;
+    --text: #e6edf3;
+    --muted: #8b949e;
+    --blue: #58a6ff;
+    --green: #3fb950;
+    --orange: #d29922;
+    --purple: #bc8cff;
+    --red: #f85149;
+    --teal: #39d353;
+    --yellow: #e3b341;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    min-height: 100vh;
+  }
+
+  /* ── Header ── */
+  header {
+    background: linear-gradient(135deg, #0d1117 0%, #1a2332 100%);
+    border-bottom: 1px solid var(--border);
+    padding: 28px 40px 20px;
+  }
+  header h1 { font-size: 26px; font-weight: 700; color: var(--blue); letter-spacing: -0.5px; }
+  header p  { color: var(--muted); font-size: 14px; margin-top: 4px; }
+  .badge-row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
+  .badge {
+    background: rgba(88,166,255,.12); border: 1px solid rgba(88,166,255,.3);
+    color: var(--blue); border-radius: 20px; padding: 3px 10px; font-size: 12px;
+  }
+
+  /* ── Tab bar ── */
+  .tabs {
+    display: flex; gap: 0;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    padding: 0 40px;
+  }
+  .tab {
+    padding: 12px 20px; cursor: pointer; font-size: 14px; color: var(--muted);
+    border-bottom: 2px solid transparent; transition: all .2s;
+  }
+  .tab:hover { color: var(--text); }
+  .tab.active { color: var(--blue); border-bottom-color: var(--blue); }
+
+  /* ── Main layout ── */
+  main { padding: 32px 40px; }
+  .panel { display: none; }
+  .panel.active { display: block; }
+
+  /* ─────────────────── FLOW DIAGRAM ─────────────────── */
+  .flow-wrapper { overflow-x: auto; padding-bottom: 16px; }
+  .flow {
+    display: flex; flex-direction: column; gap: 0;
+    min-width: 900px;
+  }
+
+  .stage {
+    display: flex; align-items: stretch; gap: 0;
+    cursor: pointer;
+    transition: transform .15s;
+  }
+  .stage:hover { transform: translateX(4px); }
+  .stage:hover .stage-card { border-color: var(--blue); }
+
+  .stage-num {
+    width: 48px; min-width: 48px;
+    display: flex; flex-direction: column; align-items: center;
+    padding-top: 20px;
+  }
+  .num-circle {
+    width: 32px; height: 32px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 13px; font-weight: 700; flex-shrink: 0;
+    z-index: 1;
+  }
+  .connector {
+    flex: 1; width: 2px; background: var(--border);
+    margin: 0 auto;
+  }
+
+  .stage-card {
+    flex: 1;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px 20px;
+    margin: 0 0 4px 0;
+    transition: border-color .2s, background .2s;
+    position: relative;
+  }
+  .stage-card.expanded { background: #1c2333; }
+
+  .arrow-gap {
+    display: flex; align-items: center;
+    padding: 4px 0 4px 48px;
+  }
+  .arrow-gap svg { color: var(--muted); }
+
+  .stage-header {
+    display: flex; align-items: center; gap: 10px;
+  }
+  .stage-icon { font-size: 20px; }
+  .stage-title { font-size: 15px; font-weight: 600; }
+  .stage-sub { font-size: 12px; color: var(--muted); margin-top: 2px; }
+  .stage-tags { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
+  .tag {
+    border-radius: 4px; padding: 2px 8px; font-size: 11px; font-weight: 500;
+  }
+
+  .stage-detail {
+    display: none; margin-top: 14px; padding-top: 14px;
+    border-top: 1px solid var(--border);
+  }
+  .stage-detail.open { display: block; }
+  .step-list { list-style: none; display: flex; flex-direction: column; gap: 6px; }
+  .step-list li {
+    display: flex; gap: 8px; align-items: flex-start;
+    font-size: 13px; color: var(--muted);
+  }
+  .step-list li::before {
+    content: '›'; color: var(--green); font-size: 14px; flex-shrink: 0;
+    margin-top: 1px;
+  }
+  .step-list li span { color: var(--text); }
+  .step-list li em { color: var(--blue); font-style: normal; }
+
+  /* ─────────────────── ARCH MAP ─────────────────── */
+  .arch-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 16px;
+  }
+  @media (min-width: 1100px) { .arch-grid { grid-template-columns: repeat(4, 1fr); } }
+
+  .layer-card {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 10px; padding: 18px;
+  }
+  .layer-title {
+    font-size: 11px; font-weight: 700; text-transform: uppercase;
+    letter-spacing: 1px; margin-bottom: 12px; padding-bottom: 8px;
+    border-bottom: 1px solid var(--border);
+  }
+  .service {
+    display: flex; align-items: flex-start; gap: 10px;
+    padding: 8px 0; border-bottom: 1px solid rgba(48,54,61,.5);
+    font-size: 13px;
+  }
+  .service:last-child { border-bottom: none; }
+  .svc-icon { font-size: 16px; flex-shrink: 0; margin-top: 1px; }
+  .svc-name { font-weight: 500; }
+  .svc-desc { color: var(--muted); font-size: 12px; margin-top: 1px; }
+
+  /* ─────────────────── COST TABLE ─────────────────── */
+  .cost-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; }
+  @media (max-width: 900px) { .cost-grid { grid-template-columns: 1fr; } }
+
+  .cost-card {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 10px; overflow: hidden;
+  }
+  .cost-header {
+    padding: 16px 20px; border-bottom: 1px solid var(--border);
+    display: flex; justify-content: space-between; align-items: center;
+  }
+  .cost-title { font-size: 14px; font-weight: 600; }
+  .cost-amount { font-size: 22px; font-weight: 700; }
+  .cost-row {
+    display: flex; justify-content: space-between;
+    padding: 8px 20px; font-size: 13px; border-bottom: 1px solid rgba(48,54,61,.4);
+  }
+  .cost-row:last-child { border-bottom: none; }
+  .cost-row .label { color: var(--muted); }
+  .cost-row .value { font-weight: 500; }
+
+  /* ─────────────────── TIMELINE ─────────────────── */
+  .timeline { display: flex; flex-direction: column; gap: 0; }
+  .phase {
+    display: flex; gap: 16px;
+  }
+  .phase-line {
+    display: flex; flex-direction: column; align-items: center; width: 32px;
+  }
+  .phase-dot {
+    width: 14px; height: 14px; border-radius: 50%; flex-shrink: 0; margin-top: 18px;
+  }
+  .phase-connector { flex: 1; width: 2px; background: var(--border); margin: 4px 0; }
+  .phase-body {
+    flex: 1; padding: 12px 0 24px;
+  }
+  .phase-header { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+  .phase-days {
+    font-size: 11px; background: rgba(48,54,61,.8); border-radius: 4px;
+    padding: 2px 8px; color: var(--muted);
+  }
+  .phase-name { font-size: 16px; font-weight: 600; }
+  .phase-goal { font-size: 13px; color: var(--muted); margin-bottom: 10px; }
+  .criteria { display: flex; flex-direction: column; gap: 4px; }
+  .criterion {
+    display: flex; gap: 8px; align-items: flex-start; font-size: 12px;
+  }
+  .crit-pass { color: var(--green); }
+  .crit-fail { color: var(--red); }
+
+  /* ─────────────────── SECTION HEADINGS ─────────────────── */
+  .section-heading {
+    font-size: 18px; font-weight: 700; margin-bottom: 20px;
+    display: flex; align-items: center; gap: 10px;
+  }
+  .section-heading::after {
+    content: ''; flex: 1; height: 1px; background: var(--border);
+  }
+
+  /* color theme helpers */
+  .c-blue   { color: var(--blue); }
+  .c-green  { color: var(--green); }
+  .c-orange { color: var(--orange); }
+  .c-purple { color: var(--purple); }
+  .c-red    { color: var(--red); }
+  .c-teal   { color: var(--teal); }
+  .c-yellow { color: var(--yellow); }
+
+  .bg-blue   { background: rgba(88,166,255,.12); color: var(--blue);   border: 1px solid rgba(88,166,255,.25); }
+  .bg-green  { background: rgba(63,185,80,.12);  color: var(--green);  border: 1px solid rgba(63,185,80,.25); }
+  .bg-orange { background: rgba(210,153,34,.12); color: var(--orange); border: 1px solid rgba(210,153,34,.25); }
+  .bg-purple { background: rgba(188,140,255,.12);color: var(--purple); border: 1px solid rgba(188,140,255,.25); }
+  .bg-red    { background: rgba(248,81,73,.12);  color: var(--red);    border: 1px solid rgba(248,81,73,.25); }
+  .bg-teal   { background: rgba(57,211,83,.12);  color: var(--teal);   border: 1px solid rgba(57,211,83,.25); }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>⚖️ EvictionShield</h1>
+  <p>Automated Eviction Defense Identification · Google Cloud + Vertex AI</p>
+  <div class="badge-row">
+    <span class="badge">8 Modules</span>
+    <span class="badge">11 Pipeline Stages</span>
+    <span class="badge">Gemini 1.5 Pro</span>
+    <span class="badge">Cloud Run</span>
+    <span class="badge">BigQuery ML</span>
+    <span class="badge">Dialogflow CX</span>
+    <span class="badge">Twilio</span>
+  </div>
+</header>
+
+<div class="tabs">
+  <div class="tab active" onclick="switchTab('flow')">🔄 Data Flow</div>
+  <div class="tab" onclick="switchTab('arch')">🏗 Architecture</div>
+  <div class="tab" onclick="switchTab('cost')">💰 Cost Model</div>
+  <div class="tab" onclick="switchTab('timeline')">📅 90-Day Launch</div>
+</div>
+
+<main>
+
+<!-- ══════════════ FLOW PANEL ══════════════ -->
+<div id="panel-flow" class="panel active">
+  <p style="color:var(--muted);font-size:13px;margin-bottom:20px;">Click any stage to expand details &nbsp;·&nbsp; Court filing → Attorney brief in under 60 minutes</p>
+  <div class="flow-wrapper">
+  <div class="flow">
+
+    <!-- S1 -->
+    <div class="stage" onclick="toggle(this)">
+      <div class="stage-num">
+        <div class="num-circle bg-blue">1</div>
+        <div class="connector"></div>
+      </div>
+      <div class="stage-card">
+        <div class="stage-header">
+          <span class="stage-icon">🏛</span>
+          <div>
+            <div class="stage-title">Court Filing Ingestion</div>
+            <div class="stage-sub">Module 1A · Cloud Run</div>
+          </div>
+        </div>
+        <div class="stage-tags">
+          <span class="tag bg-blue">PA UJS Adapter</span>
+          <span class="tag bg-orange">OAuth2</span>
+          <span class="tag bg-green">Secret Manager</span>
+          <span class="tag bg-purple">GCS Upload</span>
+          <span class="tag bg-teal">Pub/Sub</span>
+        </div>
+        <div class="stage-detail">
+          <ul class="step-list">
+            <li><span>Authenticate via OAuth2 client credentials → <em>Secret Manager: court-api-creds-pa</em></span></li>
+            <li><span>Paginated OData fetch from <em>PA UJS REST API</em> (since last checkpoint)</span></li>
+            <li><span>Download filing documents (PDF / XML / JSON) + ZIP extraction</span></li>
+            <li><span>Upload raw binary → <em>GCS: gs://[project]-raw-filings/pa/YYYY/MM/DD/[case].pdf</em></span></li>
+            <li><span>Publish <em>NormalizedFiling</em> → <em>Pub/Sub: raw-eviction-filings</em></span></li>
+            <li><span>Checkpoint write → <em>Firestore: ingestion_checkpoints/{adapter_id}</em></span></li>
+            <li><span>Exponential backoff on all external calls; SIGTERM-safe shutdown loop</span></li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <!-- S2 -->
+    <div class="stage" onclick="toggle(this)">
+      <div class="stage-num">
+        <div class="num-circle bg-blue">2</div>
+        <div class="connector"></div>
+      </div>
+      <div class="stage-card">
+        <div class="stage-header">
+          <span class="stage-icon">📄</span>
+          <div>
+            <div class="stage-title">Document Processing</div>
+            <div class="stage-sub">Module 1B · Cloud Function (push sub)</div>
+          </div>
+        </div>
+        <div class="stage-tags">
+          <span class="tag bg-blue">Document AI</span>
+          <span class="tag bg-orange">Form Parser</span>
+          <span class="tag bg-orange">OCR</span>
+          <span class="tag bg-green">Confidence Gate 0.75</span>
+          <span class="tag bg-purple">Firestore</span>
+        </div>
+        <div class="stage-detail">
+          <ul class="step-list">
+            <li><span>Triggered by <em>Pub/Sub: raw-eviction-filings</em> push subscription</span></li>
+            <li><span>Route by format: PDF → <em>Document AI Form Parser</em> · Image → <em>OCR Processor</em> · XML/JSON → direct schema map</span></li>
+            <li><span>Extract 13 structured fields with per-field confidence scores</span></li>
+            <li><span><strong>Confidence ≥ 0.75:</strong> write to <em>Firestore: eviction_filings</em> (set/merge, idempotent) + publish <em>Pub/Sub: structured-filings-ready</em></span></li>
+            <li><span><strong>Confidence &lt; 0.75:</strong> partial write + route to <em>Pub/Sub: low-confidence-filings</em> (human review)</span></li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <!-- S3 -->
+    <div class="stage" onclick="toggle(this)">
+      <div class="stage-num">
+        <div class="num-circle bg-purple">3</div>
+        <div class="connector"></div>
+      </div>
+      <div class="stage-card">
+        <div class="stage-header">
+          <span class="stage-icon">🤖</span>
+          <div>
+            <div class="stage-title">Gemini Legal Analysis</div>
+            <div class="stage-sub">Module 2 · Cloud Function + Vertex AI</div>
+          </div>
+        </div>
+        <div class="stage-tags">
+          <span class="tag bg-purple">Gemini 1.5 Pro</span>
+          <span class="tag bg-blue">12 Defense Types</span>
+          <span class="tag bg-orange">BQML Probabilities</span>
+          <span class="tag bg-green">Pydantic Validation</span>
+          <span class="tag bg-teal">Jurisdiction YAML</span>
+        </div>
+        <div class="stage-detail">
+          <ul class="step-list">
+            <li><span>Load <em>JurisdictionRuleset</em> from GCS (PA-UJS.yaml or CA-COURTS.yaml, cached in-memory)</span></li>
+            <li><span>Lookup landlord behavioral profile → <em>BigQuery: evictionshield.landlord_profiles</em></span></li>
+            <li><span>Fetch defense probability scores → <em>BQML: defense_effectiveness_model</em> (logistic regression)</span></li>
+            <li><span>Build prompt: BASE_SYSTEM_PROMPT + jurisdiction rules + user filing data + landlord profile</span></li>
+            <li><span>Call <em>Gemini 1.5 Pro</em> with <code>response_mime_type="application/json"</code></span></li>
+            <li><span>Pydantic validate → <em>EvictionAnalysisResult</em> (12 defense types, legal basis citations, disclaimer)</span></li>
+            <li><span>On schema failure: automatic correction-prompt retry (max 1 attempt)</span></li>
+            <li><span>Write → <em>Firestore: case_analyses/{case_number}</em> (idempotent)</span></li>
+            <li><span>Publish → <em>Pub/Sub: case-analysis-complete</em></span></li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <!-- S4 -->
+    <div class="stage" onclick="toggle(this)">
+      <div class="stage-num">
+        <div class="num-circle bg-orange">4</div>
+        <div class="connector"></div>
+      </div>
+      <div class="stage-card">
+        <div class="stage-header">
+          <span class="stage-icon">📱</span>
+          <div>
+            <div class="stage-title">Tenant SMS Notification</div>
+            <div class="stage-sub">Module 4A · Cloud Function + Twilio</div>
+          </div>
+        </div>
+        <div class="stage-tags">
+          <span class="tag bg-orange">Twilio SMS</span>
+          <span class="tag bg-purple">Gemini Flash</span>
+          <span class="tag bg-blue">4 Languages</span>
+          <span class="tag bg-green">Cloud Tasks</span>
+          <span class="tag bg-red">Privacy: Phone Hash</span>
+        </div>
+        <div class="stage-detail">
+          <ul class="step-list">
+            <li><span>Triggered by new <em>Firestore: case_analyses</em> document</span></li>
+            <li><span>Detect tenant language via ZIP demographic map + surname heuristics (en / es / ht / vi)</span></li>
+            <li><span>Generate SMS via <em>Gemini 1.5 Flash</em> ≤160 chars, 6th-grade reading level</span></li>
+            <li><span>Enqueue delivery → <em>Cloud Tasks: sms-notifications</em> → <em>CF: send-sms-worker</em></span></li>
+            <li><span>Deliver via <em>Twilio REST API</em> to tenant phone</span></li>
+            <li><span>Log: phone stored ONLY as SHA-256 hash — never raw number in any log</span></li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <!-- S5 -->
+    <div class="stage" onclick="toggle(this)">
+      <div class="stage-num">
+        <div class="num-circle bg-orange">5</div>
+        <div class="connector"></div>
+      </div>
+      <div class="stage-card">
+        <div class="stage-header">
+          <span class="stage-icon">💬</span>
+          <div>
+            <div class="stage-title">Tenant Intake</div>
+            <div class="stage-sub">Module 4B/4C · Dialogflow CX + Voice</div>
+          </div>
+        </div>
+        <div class="stage-tags">
+          <span class="tag bg-blue">Dialogflow CX</span>
+          <span class="tag bg-purple">STT / TTS</span>
+          <span class="tag bg-orange">Twilio Voice</span>
+          <span class="tag bg-green">4 Conversation Phases</span>
+          <span class="tag bg-teal">15 Pages</span>
+        </div>
+        <div class="stage-detail">
+          <ul class="step-list">
+            <li><span><strong>Web:</strong> Tenant clicks SMS link → Dialogflow CX agent via webhook</span></li>
+            <li><span><strong>Voice:</strong> Tenant calls Twilio → <em>Cloud Run: voice-interface</em> → WebSocket stream</span></li>
+            <li><span>Phase 1: Confirm case number → fetch <em>Firestore: case_analyses</em></span></li>
+            <li><span>Phase 2: Defense intake (6 questions: notice, payment, habitability, retaliation)</span></li>
+            <li><span>Phase 3: Generate evidence checklist (intake-conditional + defense-type-conditional items)</span></li>
+            <li><span>Phase 4: Legal aid referral lookup → <em>Firestore: legal_aid_directory by ZIP</em></span></li>
+            <li><span>Urgent cases: warm transfer to attorney / callback request</span></li>
+            <li><span>Transcript logged → <em>Firestore: call_transcripts</em> (service-account write only)</span></li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <!-- S6 -->
+    <div class="stage" onclick="toggle(this)">
+      <div class="stage-num">
+        <div class="num-circle bg-green">6</div>
+        <div class="connector"></div>
+      </div>
+      <div class="stage-card">
+        <div class="stage-header">
+          <span class="stage-icon">⚖️</span>
+          <div>
+            <div class="stage-title">Legal Aid Triage Dashboard</div>
+            <div class="stage-sub">Module 5A · Cloud Run FastAPI + Firebase Auth</div>
+          </div>
+        </div>
+        <div class="stage-tags">
+          <span class="tag bg-green">FastAPI</span>
+          <span class="tag bg-blue">Firebase Auth JWT</span>
+          <span class="tag bg-orange">Org Isolation</span>
+          <span class="tag bg-purple">Firestore</span>
+          <span class="tag bg-teal">REST API</span>
+        </div>
+        <div class="stage-detail">
+          <ul class="step-list">
+            <li><span>JWT middleware: Firebase Admin decode → load <em>Firestore: legal_aid_orgs/{org_id}</em> coverage ZIPs</span></li>
+            <li><span><em>GET /cases</em>: Firestore query with 6 filters + ZIP coverage isolation + pagination</span></li>
+            <li><span><em>GET /cases/{id}</em>: merges analysis + filing + intake + GCS signed URL for brief PDF</span></li>
+            <li><span><em>POST /cases/{id}/assign</em>: verify org membership → update Firestore → Pub/Sub notify attorney</span></li>
+            <li><span><em>POST /cases/{id}/outcome</em>: write to <em>Firestore: case_outcomes</em> → triggers Module 6A</span></li>
+            <li><span><em>DELETE /cases/{id}/tenant-data</em>: nullify PII fields (GDPR/CCPA right to erasure)</span></li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <!-- S7 -->
+    <div class="stage" onclick="toggle(this)">
+      <div class="stage-num">
+        <div class="num-circle bg-green">7</div>
+        <div class="connector"></div>
+      </div>
+      <div class="stage-card">
+        <div class="stage-header">
+          <span class="stage-icon">📋</span>
+          <div>
+            <div class="stage-title">Attorney Brief Generation</div>
+            <div class="stage-sub">Module 5B · Cloud Function + reportlab</div>
+          </div>
+        </div>
+        <div class="stage-tags">
+          <span class="tag bg-purple">Gemini 1.5 Pro</span>
+          <span class="tag bg-blue">reportlab PDF</span>
+          <span class="tag bg-orange">Bluebook Citations</span>
+          <span class="tag bg-green">GCS Signed URL</span>
+        </div>
+        <div class="stage-detail">
+          <ul class="step-list">
+            <li><span>Triggered by <em>Firestore: case_analyses</em> update (assigned_attorney_uid set)</span></li>
+            <li><span>Fetch: case analysis + filing + tenant intake responses</span></li>
+            <li><span>Call <em>Gemini 1.5 Pro</em> → structured brief content JSON (7 sections)</span></li>
+            <li><span>Generate PDF via <em>reportlab</em>: case summary, defenses, landlord profile, intake facts, strategy, evidence checklist, deadlines</span></li>
+            <li><span>All statute citations in Bluebook format; mandatory legal disclaimer embedded</span></li>
+            <li><span>Upload → <em>GCS: attorney-briefs/</em> · Return 2-hour signed URL → <em>Firestore: case_analyses.attorney_brief_url</em></span></li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <!-- S8 -->
+    <div class="stage" onclick="toggle(this)">
+      <div class="stage-num">
+        <div class="num-circle bg-teal">8</div>
+        <div class="connector"></div>
+      </div>
+      <div class="stage-card">
+        <div class="stage-header">
+          <span class="stage-icon">🔁</span>
+          <div>
+            <div class="stage-title">Outcome Feedback Loop</div>
+            <div class="stage-sub">Module 6A · Cloud Function</div>
+          </div>
+        </div>
+        <div class="stage-tags">
+          <span class="tag bg-teal">BigQuery MERGE</span>
+          <span class="tag bg-blue">Defense Effectiveness</span>
+          <span class="tag bg-orange">Analysis Review</span>
+          <span class="tag bg-purple">Pub/Sub Trigger</span>
+        </div>
+        <div class="stage-detail">
+          <ul class="step-list">
+            <li><span>Triggered by new <em>Firestore: case_outcomes</em> document</span></li>
+            <li><span>BigQuery MERGE → <em>evictionshield.filing_events</em> (outcome, represented, outcome_date)</span></li>
+            <li><span>BigQuery MERGE → <em>evictionshield.defense_effectiveness</em> (increment total_cases, cases_defense_succeeded per defense type)</span></li>
+            <li><span>Create <em>Firestore: analysis_reviews</em> if high-confidence defense identified but tenant lost</span></li>
+            <li><span>Publish → <em>Pub/Sub: trigger-profile-update</em> to recalculate landlord profiles</span></li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <!-- S9 -->
+    <div class="stage" onclick="toggle(this)">
+      <div class="stage-num">
+        <div class="num-circle bg-teal">9</div>
+        <div class="connector"></div>
+      </div>
+      <div class="stage-card">
+        <div class="stage-header">
+          <span class="stage-icon">🏠</span>
+          <div>
+            <div class="stage-title">Landlord Profile Updates</div>
+            <div class="stage-sub">Module 3B · Dataflow (Apache Beam)</div>
+          </div>
+        </div>
+        <div class="stage-tags">
+          <span class="tag bg-blue">Dataflow</span>
+          <span class="tag bg-orange">Apache Beam</span>
+          <span class="tag bg-green">Rolling 90d/365d</span>
+          <span class="tag bg-purple">Cloud Scheduler</span>
+        </div>
+        <div class="stage-detail">
+          <ul class="step-list">
+            <li><span>Cloud Scheduler triggers every 6 hours → Dataflow REST API</span></li>
+            <li><span><em>ReadFromBigQuery</em>: evictionshield.filing_events</span></li>
+            <li><span>NormalizeFilingEventFn → GroupByKey → all events per landlord</span></li>
+            <li><span>ComputeLandlordMetricsFn: rolling 90d/365d counts, withdrawal rate, defect rate, tenant win rate</span></li>
+            <li><span>ComputeComplaintCorrelationFn: side input from habitability_complaints table</span></li>
+            <li><span>WriteToBigQuery → <em>evictionshield.landlord_profiles</em> (WRITE_TRUNCATE)</span></li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <!-- S10 -->
+    <div class="stage" onclick="toggle(this)">
+      <div class="stage-num">
+        <div class="num-circle bg-red">10</div>
+        <div class="connector"></div>
+      </div>
+      <div class="stage-card">
+        <div class="stage-header">
+          <span class="stage-icon">🧠</span>
+          <div>
+            <div class="stage-title">BQML Retraining</div>
+            <div class="stage-sub">Module 6B · Cloud Build (weekly)</div>
+          </div>
+        </div>
+        <div class="stage-tags">
+          <span class="tag bg-red">BigQuery ML</span>
+          <span class="tag bg-blue">Logistic Regression</span>
+          <span class="tag bg-orange">Quality Gate</span>
+          <span class="tag bg-purple">Cloud Scheduler</span>
+        </div>
+        <div class="stage-detail">
+          <ul class="step-list">
+            <li><span>Cloud Scheduler triggers every Sunday 2AM UTC → Cloud Build pipeline</span></li>
+            <li><span>Step 1: Validate training data volume (&gt;500 rows required)</span></li>
+            <li><span>Step 2: CREATE OR REPLACE MODEL — LOGISTIC_REG, 8 features, auto_class_weights=TRUE</span></li>
+            <li><span>Step 3: Quality gate — <em>ML.EVALUATE</em>: precision &gt;0.55, roc_auc &gt;0.65</span></li>
+            <li><span>Step 4: Archive snapshot to GCS · Step 5: Log retraining event to BigQuery</span></li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <!-- S11 -->
+    <div class="stage" onclick="toggle(this)">
+      <div class="stage-num">
+        <div class="num-circle bg-red">11</div>
+      </div>
+      <div class="stage-card">
+        <div class="stage-header">
+          <span class="stage-icon">🔒</span>
+          <div>
+            <div class="stage-title">Data Retention & Privacy</div>
+            <div class="stage-sub">Module 7C · Cloud Function (daily)</div>
+          </div>
+        </div>
+        <div class="stage-tags">
+          <span class="tag bg-red">PII Anonymization</span>
+          <span class="tag bg-blue">SHA-256 Tokens</span>
+          <span class="tag bg-green">90-Day Window</span>
+          <span class="tag bg-orange">Compliance Report</span>
+        </div>
+        <div class="stage-detail">
+          <ul class="step-list">
+            <li><span>Cloud Scheduler daily 2AM UTC → Cloud Function: evictionshield-retention-job</span></li>
+            <li><span>Query <em>Firestore: eviction_filings</em> WHERE pii_anonymized=false AND age&gt;90d</span></li>
+            <li><span>Batch replace tenant_name/phone/email with deterministic <em>ANON_ SHA-256 tokens</em></span></li>
+            <li><span>BigQuery verification: confirm no PII columns in filing_events schema</span></li>
+            <li><span>Monthly (1st of month): compliance report JSON → <em>GCS: [project]-compliance/</em></span></li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- .flow -->
+  </div><!-- .flow-wrapper -->
+</div>
+
+<!-- ══════════════ ARCH PANEL ══════════════ -->
+<div id="panel-arch" class="panel">
+  <h2 class="section-heading">Service Map</h2>
+  <div class="arch-grid">
+
+    <div class="layer-card">
+      <div class="layer-title c-blue">🔄 Ingestion Layer</div>
+      <div class="service"><span class="svc-icon">☁️</span><div><div class="svc-name">Cloud Run: evictionshield-ingestion</div><div class="svc-desc">PA UJS OAuth2 adapter, GCS upload, Pub/Sub emit</div></div></div>
+      <div class="service"><span class="svc-icon">⚡</span><div><div class="svc-name">CF: docprocessing</div><div class="svc-desc">Document AI Form Parser + OCR, confidence gating</div></div></div>
+      <div class="service"><span class="svc-icon">🗄️</span><div><div class="svc-name">GCS: raw-filings</div><div class="svc-desc">Court PDFs, XMLs, ZIPs by state/date</div></div></div>
+    </div>
+
+    <div class="layer-card">
+      <div class="layer-title c-purple">🤖 Intelligence Layer</div>
+      <div class="service"><span class="svc-icon">⚡</span><div><div class="svc-name">CF: gemini-analysis</div><div class="svc-desc">Gemini 1.5 Pro, 12 defenses, Pydantic validation</div></div></div>
+      <div class="service"><span class="svc-icon">📊</span><div><div class="svc-name">BigQuery ML</div><div class="svc-desc">defense_effectiveness_model (LOGISTIC_REG, 8 features)</div></div></div>
+      <div class="service"><span class="svc-icon">📁</span><div><div class="svc-name">GCS: rulesets</div><div class="svc-desc">PA-UJS.yaml, CA-COURTS.yaml — YAML-driven jurisdiction rules</div></div></div>
+    </div>
+
+    <div class="layer-card">
+      <div class="layer-title c-orange">📱 Tenant Layer</div>
+      <div class="service"><span class="svc-icon">⚡</span><div><div class="svc-name">CF: sms-notify + send-sms-worker</div><div class="svc-desc">Gemini Flash SMS gen, Cloud Tasks queue, Twilio delivery</div></div></div>
+      <div class="service"><span class="svc-icon">💬</span><div><div class="svc-name">Dialogflow CX + Webhook CF</div><div class="svc-desc">15 pages, 5 intents, 4 conversation phases</div></div></div>
+      <div class="service"><span class="svc-icon">☁️</span><div><div class="svc-name">Cloud Run: voice-interface</div><div class="svc-desc">Twilio WebSocket, STT streaming, Neural2 TTS (4 langs)</div></div></div>
+    </div>
+
+    <div class="layer-card">
+      <div class="layer-title c-green">⚖️ Legal Aid Layer</div>
+      <div class="service"><span class="svc-icon">☁️</span><div><div class="svc-name">Cloud Run: dashboard-api</div><div class="svc-desc">FastAPI, Firebase Auth JWT, org isolation</div></div></div>
+      <div class="service"><span class="svc-icon">⚡</span><div><div class="svc-name">CF: brief-generator</div><div class="svc-desc">Gemini 1.5 Pro → reportlab PDF, Bluebook citations</div></div></div>
+      <div class="service"><span class="svc-icon">📁</span><div><div class="svc-name">GCS: attorney-briefs</div><div class="svc-desc">Generated PDFs with 2-hour signed URLs</div></div></div>
+    </div>
+
+    <div class="layer-card">
+      <div class="layer-title c-teal">🔁 Feedback Layer</div>
+      <div class="service"><span class="svc-icon">⚡</span><div><div class="svc-name">CF: outcome-ingest</div><div class="svc-desc">BigQuery MERGE, defense effectiveness counters</div></div></div>
+      <div class="service"><span class="svc-icon">🌊</span><div><div class="svc-name">Dataflow: landlord-profile-update</div><div class="svc-desc">Apache Beam, rolling 90d/365d metrics, every 6h</div></div></div>
+      <div class="service"><span class="svc-icon">🔧</span><div><div class="svc-name">Cloud Build: bqml-weekly-retrain</div><div class="svc-desc">5-step pipeline with quality gate, Sundays 2AM</div></div></div>
+    </div>
+
+    <div class="layer-card">
+      <div class="layer-title c-red">🔒 Security & Privacy</div>
+      <div class="service"><span class="svc-icon">⚡</span><div><div class="svc-name">CF: retention-job</div><div class="svc-desc">90-day PII anonymization, SHA-256 ANON_ tokens</div></div></div>
+      <div class="service"><span class="svc-icon">🔑</span><div><div class="svc-name">Secret Manager</div><div class="svc-desc">All credentials at runtime — no env var secrets</div></div></div>
+      <div class="service"><span class="svc-icon">🛡️</span><div><div class="svc-name">Firestore Security Rules</div><div class="svc-desc">12 collection rules, org ZIP isolation, phone-hash ownership</div></div></div>
+    </div>
+
+    <div class="layer-card">
+      <div class="layer-title c-yellow">📊 Data Layer</div>
+      <div class="service"><span class="svc-icon">🔥</span><div><div class="svc-name">Firestore (Native)</div><div class="svc-desc">Real-time documents: filings, analyses, outcomes, transcripts</div></div></div>
+      <div class="service"><span class="svc-icon">📊</span><div><div class="svc-name">BigQuery</div><div class="svc-desc">filing_events, landlord_profiles, defense_effectiveness, BQML</div></div></div>
+      <div class="service"><span class="svc-icon">📨</span><div><div class="svc-name">Pub/Sub (7 topics + DLQs)</div><div class="svc-desc">raw-filings, structured-ready, analysis-complete, outcomes…</div></div></div>
+    </div>
+
+    <div class="layer-card">
+      <div class="layer-title c-blue">🏗 Infrastructure</div>
+      <div class="service"><span class="svc-icon">🔧</span><div><div class="svc-name">Terraform (Module 7)</div><div class="svc-desc">21 APIs, 8 service accounts, all GCP resources as IaC</div></div></div>
+      <div class="service"><span class="svc-icon">🧪</span><div><div class="svc-name">pytest (Module 8)</div><div class="svc-desc">85% coverage requirement, 4 test suites, 20 synthetic fixtures</div></div></div>
+      <div class="service"><span class="svc-icon">⏰</span><div><div class="svc-name">Cloud Scheduler</div><div class="svc-desc">Dataflow every 6h, BQML Sunday 2AM, Retention daily 2AM</div></div></div>
+    </div>
+
+  </div>
+</div>
+
+<!-- ══════════════ COST PANEL ══════════════ -->
+<div id="panel-cost" class="panel">
+  <h2 class="section-heading">Cost Model</h2>
+  <div class="cost-grid">
+
+    <div class="cost-card">
+      <div class="cost-header">
+        <div>
+          <div class="cost-title">Pilot Scale</div>
+          <div style="font-size:12px;color:var(--muted)">1,000 filings/mo · Single city</div>
+        </div>
+        <div class="cost-amount c-green">$126<span style="font-size:14px;color:var(--muted)">/mo</span></div>
+      </div>
+      <div class="cost-row"><span class="label">Cloud Run + Functions</span><span class="value">$60</span></div>
+      <div class="cost-row"><span class="label">Gemini 1.5 Pro (analysis)</span><span class="value">$22</span></div>
+      <div class="cost-row"><span class="label">Document AI Form Parser</span><span class="value">$1.50</span></div>
+      <div class="cost-row"><span class="label">STT / TTS (200 calls)</span><span class="value">$12.80</span></div>
+      <div class="cost-row"><span class="label">Firestore</span><span class="value">$12</span></div>
+      <div class="cost-row"><span class="label">BigQuery + GCS</span><span class="value">$5.50</span></div>
+      <div class="cost-row"><span class="label">Twilio SMS</span><span class="value">$7.90</span></div>
+      <div class="cost-row"><span class="label">Other (Logging, Scheduler)</span><span class="value">$5</span></div>
+    </div>
+
+    <div class="cost-card">
+      <div class="cost-header">
+        <div>
+          <div class="cost-title">City Scale</div>
+          <div style="font-size:12px;color:var(--muted)">50,000 filings/mo · 10 cities</div>
+        </div>
+        <div class="cost-amount c-orange">$5,060<span style="font-size:14px;color:var(--muted)">/mo</span></div>
+      </div>
+      <div class="cost-row"><span class="label">Cloud Run + Functions</span><span class="value">$920</span></div>
+      <div class="cost-row"><span class="label">Dataflow (6h runs)</span><span class="value">$450</span></div>
+      <div class="cost-row"><span class="label">Gemini 1.5 Pro</span><span class="value">$1,730</span></div>
+      <div class="cost-row"><span class="label">Document AI</span><span class="value">$75</span></div>
+      <div class="cost-row"><span class="label">STT / TTS (10K calls)</span><span class="value">$640</span></div>
+      <div class="cost-row"><span class="label">Firestore</span><span class="value">$600</span></div>
+      <div class="cost-row"><span class="label">BigQuery + GCS</span><span class="value">$95</span></div>
+      <div class="cost-row"><span class="label">Twilio SMS</span><span class="value">$395</span></div>
+      <div class="cost-row"><span class="label">BQML + Other</span><span class="value">$155</span></div>
+    </div>
+
+    <div class="cost-card">
+      <div class="cost-header">
+        <div>
+          <div class="cost-title">National Scale</div>
+          <div style="font-size:12px;color:var(--muted)">500,000 filings/mo · ~15% US evictions</div>
+        </div>
+        <div class="cost-amount c-red">$49,500<span style="font-size:14px;color:var(--muted)">/mo</span></div>
+      </div>
+      <div class="cost-row"><span class="label">Cloud Run + Functions</span><span class="value">$7,300</span></div>
+      <div class="cost-row"><span class="label">Dataflow (continuous)</span><span class="value">$4,200</span></div>
+      <div class="cost-row"><span class="label">Gemini 1.5 Pro</span><span class="value">$17,300</span></div>
+      <div class="cost-row"><span class="label">Document AI</span><span class="value">$750</span></div>
+      <div class="cost-row"><span class="label">STT / TTS (100K calls)</span><span class="value">$6,400</span></div>
+      <div class="cost-row"><span class="label">Firestore</span><span class="value">$5,800</span></div>
+      <div class="cost-row"><span class="label">BigQuery + GCS</span><span class="value">$940</span></div>
+      <div class="cost-row"><span class="label">Twilio SMS (volume disc.)</span><span class="value">$3,750</span></div>
+      <div class="cost-row"><span class="label">Multi-region + Monitoring</span><span class="value">$3,060</span></div>
+    </div>
+
+  </div>
+
+  <div style="margin-top:24px;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:20px;">
+    <div class="section-heading" style="font-size:15px;">Revenue Model</div>
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px;font-size:13px;">
+      <div>
+        <div style="color:var(--green);font-weight:600;margin-bottom:6px;">Pilot ($126/mo cost)</div>
+        <div style="color:var(--muted);">Revenue: $500–$2,000/mo</div>
+        <div style="color:var(--muted);">1 legal aid org subscriber</div>
+        <div style="color:var(--muted);">Gross margin: ~90%+</div>
+      </div>
+      <div>
+        <div style="color:var(--orange);font-weight:600;margin-bottom:6px;">City Scale ($5,060/mo cost)</div>
+        <div style="color:var(--muted);">Revenue: $25K–$50K/mo</div>
+        <div style="color:var(--muted);">10 orgs @ $2,500–$5,000/mo</div>
+        <div style="color:var(--muted);">Gross margin: ~80–90%</div>
+      </div>
+      <div>
+        <div style="color:var(--red);font-weight:600;margin-bottom:6px;">National ($49.5K/mo cost)</div>
+        <div style="color:var(--muted);">Revenue: $500K–$1M/mo</div>
+        <div style="color:var(--muted);">Committed use discounts apply</div>
+        <div style="color:var(--muted);">Gross margin: ~90–95%</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════ TIMELINE PANEL ══════════════ -->
+<div id="panel-timeline" class="panel">
+  <h2 class="section-heading">90-Day Launch Sequence</h2>
+  <div class="timeline">
+
+    <div class="phase">
+      <div class="phase-line">
+        <div class="phase-dot" style="background:var(--blue)"></div>
+        <div class="phase-connector"></div>
+      </div>
+      <div class="phase-body">
+        <div class="phase-header">
+          <span class="phase-days">Days 1–21</span>
+          <span class="phase-name">Phase 1 — Foundation</span>
+        </div>
+        <div class="phase-goal">Goal: One real filing from PA UJS in Firestore with correct fields</div>
+        <div style="font-size:13px;color:var(--muted);margin-bottom:8px;">GCP setup → Terraform apply → PA UJS adapter → Document AI training → Ruleset upload → End-to-end smoke test</div>
+        <div class="criteria">
+          <div class="criterion"><span class="crit-pass">✅</span><span>≥1 real PA filing ingested with ≥0.75 confidence on all critical fields</span></div>
+          <div class="criterion"><span class="crit-pass">✅</span><span>Module 8 ingestion tests passing at 85%+ coverage</span></div>
+          <div class="criterion"><span class="crit-fail">❌ STOP</span><span>if PA UJS API access denied or Document AI confidence consistently below 0.65</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="phase">
+      <div class="phase-line">
+        <div class="phase-dot" style="background:var(--purple)"></div>
+        <div class="phase-connector"></div>
+      </div>
+      <div class="phase-body">
+        <div class="phase-header">
+          <span class="phase-days">Days 22–42</span>
+          <span class="phase-name">Phase 2 — Intelligence Layer</span>
+        </div>
+        <div class="phase-goal">Goal: Valid EvictionAnalysisResult identifying ≥1 defense correctly</div>
+        <div style="font-size:13px;color:var(--muted);margin-bottom:8px;">Gemini CF deploy → Seed BigQuery → Pydantic validation → CA ruleset → Legal review → Benchmark 20 fixtures</div>
+        <div class="criteria">
+          <div class="criterion"><span class="crit-pass">✅</span><span>Gemini correctly identifies expected defense in ≥16/20 fixtures (80%)</span></div>
+          <div class="criterion"><span class="crit-pass">✅</span><span>Zero hallucinated statute citations (verified by legal reviewer)</span></div>
+          <div class="criterion"><span class="crit-pass">✅</span><span>All 20 fixture analyses complete in &lt;30 seconds each</span></div>
+          <div class="criterion"><span class="crit-fail">❌ STOP</span><span>if Gemini consistently misidentifies the improper_notice_period fixture</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="phase">
+      <div class="phase-line">
+        <div class="phase-dot" style="background:var(--orange)"></div>
+        <div class="phase-connector"></div>
+      </div>
+      <div class="phase-body">
+        <div class="phase-header">
+          <span class="phase-days">Days 43–56</span>
+          <span class="phase-name">Phase 3 — Tenant Interface</span>
+        </div>
+        <div class="phase-goal">Goal: Tenant receives SMS within 5 minutes of filing ingestion</div>
+        <div style="font-size:13px;color:var(--muted);margin-bottom:8px;">SMS deploy (4 langs) → Dialogflow CX agent → Legal aid directory → Voice interface → Full end-to-end test</div>
+        <div class="criteria">
+          <div class="criterion"><span class="crit-pass">✅</span><span>SMS received within 5 minutes of case analysis completing</span></div>
+          <div class="criterion"><span class="crit-pass">✅</span><span>Dialogflow agent completes all 4 phases without looping</span></div>
+          <div class="criterion"><span class="crit-pass">✅</span><span>Legal aid lookup returns results for Philadelphia ZIP codes</span></div>
+          <div class="criterion"><span class="crit-fail">❌ STOP</span><span>if Twilio delivery rate below 85% in sandbox testing</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="phase">
+      <div class="phase-line">
+        <div class="phase-dot" style="background:var(--green)"></div>
+        <div class="phase-connector"></div>
+      </div>
+      <div class="phase-body">
+        <div class="phase-header">
+          <span class="phase-days">Days 57–70</span>
+          <span class="phase-name">Phase 4 — Legal Aid Dashboard</span>
+        </div>
+        <div class="phase-goal">Goal: First paying customer possible — attorney can log in and work cases</div>
+        <div style="font-size:13px;color:var(--muted);margin-bottom:8px;">Dashboard API → Brief generator (legal review) → Firestore security rules → Org isolation verification → Pilot org onboard</div>
+        <div class="criteria">
+          <div class="criterion"><span class="crit-pass">✅</span><span>Attorney can log in, see only their org's cases, assign a case, download brief</span></div>
+          <div class="criterion"><span class="crit-pass">✅</span><span>Brief PDF legally accurate (verified by pilot attorney)</span></div>
+          <div class="criterion"><span class="crit-pass">✅</span><span>Org isolation verified: org A cannot read org B's cases</span></div>
+          <div class="criterion"><span class="crit-fail">❌ STOP</span><span>if pilot attorney says brief is misleading or cites incorrect statutes</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="phase">
+      <div class="phase-line">
+        <div class="phase-dot" style="background:var(--teal)"></div>
+        <div class="phase-connector"></div>
+      </div>
+      <div class="phase-body">
+        <div class="phase-header">
+          <span class="phase-days">Days 71–84</span>
+          <span class="phase-name">Phase 5 — Hardening</span>
+        </div>
+        <div class="phase-goal">Goal: Production-ready — security audit passed, 99% uptime</div>
+        <div style="font-size:13px;color:var(--muted);margin-bottom:8px;">Outcome ingestion → BQML first run → Retention job → Security rules + pentest → Load test 100 concurrent → Monitoring alerts</div>
+        <div class="criteria">
+          <div class="criterion"><span class="crit-pass">✅</span><span>Outcome data flows: API → BigQuery → defense_effectiveness table</span></div>
+          <div class="criterion"><span class="crit-pass">✅</span><span>Load test: dashboard API handles 100 concurrent @ &lt;2s P95</span></div>
+          <div class="criterion"><span class="crit-pass">✅</span><span>No critical security findings from penetration test</span></div>
+          <div class="criterion"><span class="crit-fail">❌ STOP</span><span>if PII anonymization fails or leaves raw PII after 90-day window</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="phase">
+      <div class="phase-line">
+        <div class="phase-dot" style="background:var(--yellow)"></div>
+      </div>
+      <div class="phase-body">
+        <div class="phase-header">
+          <span class="phase-days">Days 85–90</span>
+          <span class="phase-name">Phase 6 — Commercial Launch</span>
+        </div>
+        <div class="phase-goal">Goal: First revenue, first non-paying tenant reached, second city online</div>
+        <div style="font-size:13px;color:var(--muted);margin-bottom:8px;">Invoice pilot org · Press release to housing justice orgs · Onboard 2nd org + CA ruleset · Launch public intake portal</div>
+        <div class="criteria">
+          <div class="criterion"><span class="crit-pass">📅 Day 21</span><span>First real filing analyzed (non-paying impact)</span></div>
+          <div class="criterion"><span class="crit-pass">📅 Day 56</span><span>First tenant reached via real SMS</span></div>
+          <div class="criterion"><span class="crit-pass">📅 Day 85</span><span>First revenue invoice sent — $2,500–$5,000</span></div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+</main>
+
+<script>
+function switchTab(name) {
+  document.querySelectorAll('.tab').forEach((t,i) => {
+    t.classList.toggle('active', ['flow','arch','cost','timeline'][i] === name);
+  });
+  document.querySelectorAll('.panel').forEach(p => {
+    p.classList.toggle('active', p.id === 'panel-' + name);
+  });
+}
+
+function toggle(stageEl) {
+  const detail = stageEl.querySelector('.stage-detail');
+  const card   = stageEl.querySelector('.stage-card');
+  const open   = detail.classList.contains('open');
+  // close all
+  document.querySelectorAll('.stage-detail').forEach(d => d.classList.remove('open'));
+  document.querySelectorAll('.stage-card').forEach(c => c.classList.remove('expanded'));
+  if (!open) {
+    detail.classList.add('open');
+    card.classList.add('expanded');
+  }
+}
+</script>
+</body>
+</html>
