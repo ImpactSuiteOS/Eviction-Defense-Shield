@@ -2,12 +2,16 @@
 EvictionShield — Module 2C: Gemini Legal Analysis Engine
 
 Accepts a structured_filing dict from Firestore, retrieves landlord history from BigQuery,
-calls Gemini 1.5 Pro via Vertex AI, validates the response, and writes to Firestore.
+calls Gemini 1.5 Pro via Vertex AI or Google AI Studio, validates the response, and writes
+to Firestore.
 
 Environment variables:
     GCP_PROJECT_ID
     GCP_LOCATION                   Vertex AI region (default: us-central1)
     GEMINI_MODEL                   Model ID (default: gemini-1.5-pro-001)
+    GEMINI_API_KEY                 Google AI Studio API key — when set, bypasses Vertex AI
+                                   and calls the Gemini API directly (no GCP auth required).
+                                   Obtain from https://aistudio.google.com/app/apikey
     GCS_BUCKET_RULESETS            Cloud Storage bucket for jurisdiction YAML files
     FIRESTORE_ANALYSIS_COLLECTION  (default: case_analyses)
     BIGQUERY_DATASET               Dataset for landlord profiles (default: evictionshield)
@@ -30,6 +34,13 @@ from pydantic import ValidationError
 import vertexai
 from vertexai.generative_models import GenerationConfig, GenerativeModel
 
+# Google AI Studio SDK — only imported when GEMINI_API_KEY is set
+try:
+    import google.generativeai as genai  # type: ignore[import]
+    _GENAI_AVAILABLE = True
+except ImportError:
+    _GENAI_AVAILABLE = False
+
 from .jurisdiction_ruleset import InsufficientRulesError, JurisdictionRuleset
 from .schemas import (
     DefenseSuccessProbability,
@@ -48,6 +59,7 @@ logger = logging.getLogger(__name__)
 PROJECT_ID: str = os.environ["GCP_PROJECT_ID"]
 LOCATION: str = os.environ.get("GCP_LOCATION", "us-central1")
 GEMINI_MODEL: str = os.environ.get("GEMINI_MODEL", "gemini-1.5-pro-001")
+GEMINI_API_KEY: Optional[str] = os.environ.get("GEMINI_API_KEY")
 GCS_BUCKET_RULESETS: str = os.environ.get("GCS_BUCKET_RULESETS", "evictionshield-rulesets")
 FIRESTORE_ANALYSIS_COLLECTION: str = os.environ.get("FIRESTORE_ANALYSIS_COLLECTION", "case_analyses")
 BQ_DATASET: str = os.environ.get("BIGQUERY_DATASET", "evictionshield")
@@ -57,8 +69,21 @@ PUBSUB_TOPIC_ANALYSIS_DONE: str = os.environ.get("PUBSUB_TOPIC_ANALYSIS_DONE", "
 # Module-level singletons
 # ---------------------------------------------------------------------------
 
-vertexai.init(project=PROJECT_ID, location=LOCATION)
-_model = GenerativeModel(GEMINI_MODEL)
+if GEMINI_API_KEY:
+    # Google AI Studio path — API key auth, no GCP project required for Gemini calls
+    if not _GENAI_AVAILABLE:
+        raise ImportError(
+            "GEMINI_API_KEY is set but 'google-generativeai' is not installed. "
+            "Run: pip install google-generativeai"
+        )
+    genai.configure(api_key=GEMINI_API_KEY)
+    _model: Any = genai.GenerativeModel(GEMINI_MODEL)
+    logger.info("Gemini model initialised via Google AI Studio (API key auth)")
+else:
+    # Vertex AI path — uses GCP service-account / ADC credentials
+    vertexai.init(project=PROJECT_ID, location=LOCATION)
+    _model = GenerativeModel(GEMINI_MODEL)
+    logger.info("Gemini model initialised via Vertex AI (project=%s, location=%s)", PROJECT_ID, LOCATION)
 _firestore_client = firestore.Client(project=PROJECT_ID)
 _bq_client = bigquery.Client(project=PROJECT_ID)
 _pubsub_publisher = pubsub_v1.PublisherClient()
@@ -248,26 +273,39 @@ Return ONLY a valid JSON object matching the required schema. No prose, no markd
 
 def _call_gemini(system_prompt: str, user_prompt: str) -> str:
     """
-    Call Gemini 1.5 Pro via Vertex AI.
+    Call Gemini 1.5 Pro via Google AI Studio (API key) or Vertex AI (ADC).
     Returns the raw text response.
     Raises on quota exceeded, safety block, or network failure.
     """
-    generation_config = GenerationConfig(
-        temperature=0.1,          # Low temperature for deterministic legal analysis
-        top_p=0.95,
-        max_output_tokens=8192,
-        response_mime_type="application/json",
-    )
+    if GEMINI_API_KEY:
+        # Google AI Studio SDK path
+        generation_config = genai.GenerationConfig(  # type: ignore[union-attr]
+            temperature=0.1,
+            top_p=0.95,
+            max_output_tokens=8192,
+            response_mime_type="application/json",
+        )
+    else:
+        # Vertex AI SDK path
+        generation_config = GenerationConfig(
+            temperature=0.1,
+            top_p=0.95,
+            max_output_tokens=8192,
+            response_mime_type="application/json",
+        )
+
     response = _model.generate_content(
         [system_prompt, user_prompt],
         generation_config=generation_config,
     )
-    # Check for safety blocks
+
+    # Check for safety blocks (finish_reason is an enum in both SDKs)
     if not response.candidates:
         raise RuntimeError("Gemini returned no candidates — possible safety filter block")
     candidate = response.candidates[0]
-    if candidate.finish_reason.name not in ("STOP", "MAX_TOKENS"):
-        raise RuntimeError(f"Gemini finish reason: {candidate.finish_reason.name}")
+    finish_name = candidate.finish_reason.name if hasattr(candidate.finish_reason, "name") else str(candidate.finish_reason)
+    if finish_name not in ("STOP", "MAX_TOKENS"):
+        raise RuntimeError(f"Gemini finish reason: {finish_name}")
     return candidate.content.parts[0].text
 
 
